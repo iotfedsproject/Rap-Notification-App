@@ -31,7 +31,7 @@ public class KeepAliveThread extends Thread{
                 try {
                     System.out.println("Sending keep alive message");
                     w.sendKeepAliveMessage();
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                     System.out.println("Failed to send keep alive message");
                 }

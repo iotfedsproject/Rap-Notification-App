@@ -42,7 +42,7 @@ public class WebSocketApi {
     public static String GET_DEVICE_ID_URL = "http://146.124.106.187:8082/symbiote/resource/getdeviceid";
     public static String ASAPA_LOGIN_URL   = "https://kubernetes.pasiphae.eu/shapes/asapa/auth/login";
 
-    public static String KEEP_ALIVE_MESSAGE = "000";
+    public static String KEEP_ALIVE_MESSAGE = "KEEP_ALIVE_MESSAGE";//""000";
     public static long KEEP_ALIVE_MESSAGE_PERIOD = 30000;
 
     /*
@@ -55,13 +55,19 @@ public class WebSocketApi {
 
     public static String SUBSCRIBE_COMMAND   = "SUBSCRIBE";
     public static String UNSUBSCRIBE_COMMAND = "UNSUBSCRIBE";
+    public static String EXTRA_INFO          = "EXTRA_INFO";
+   // public static String KEEP_ALIVE_MESSAGE  = "KEEP_ALIVE_MESSAGE";
 
     public String interWorkingInterface = ""; //required
-    public String coreUrl               = "https://symbiote-core.intracom-telecom.com";
+    public String coreUrl               = "https://symbiote-core.iotfeds.intracom-telecom.com";// "https://symbiote-core.intracom-telecom.com";
     public String platformID            = "";//required
     public String userName              = "xxx";
     public String password              = "xxx";
     public String email                 = "";
+
+    public static String OK   = "OK";
+    public static String FAIL = "FAIL";
+
 
     public Session session = null;
 
@@ -154,7 +160,7 @@ public void closeSession() {
 
     }//end
 //------------------------------------------------------------------------------------------
-    public void sendKeepAliveMessage() throws IOException{
+    public void xsendKeepAliveMessage() throws IOException{
         try {
             sendMessageToRAP(KEEP_ALIVE_MESSAGE);
         }catch(Exception ex){
@@ -166,6 +172,92 @@ public void sendMessageToRAP(String message) throws IOException {
     session.getBasicRemote().sendText(message);
 }//end
 //------------------------------------------------------------------------------------------
+public static String createExtraInfoMessage(String resourceId,String extraInfo,String action) throws Exception{
+    String message = "";
+    JSONObject rootJsonObject       = new JSONObject();
+    JSONObject secRequestJsonObject = new JSONObject();
+    JSONObject payloadJsonObject    = new JSONObject();
+
+    if(resourceId == null){
+        throw new Exception("Exception resourceId is null");
+    }
+
+    String[] resourceIds = new String[2];
+    resourceIds[0] = resourceId;
+    resourceIds[1] = extraInfo;
+
+    /*
+     * Build the payload json object
+     */
+
+    payloadJsonObject.put("action", action);
+    payloadJsonObject.put("ids", resourceIds);
+
+    /*
+     * Build the security request json object
+     */
+
+    String timestamp = Long.toString(new Timestamp(System.currentTimeMillis()).getTime());
+    secRequestJsonObject.put("x-auth-timestamp", timestamp);
+    secRequestJsonObject.put("x-auth-size", 0);
+    secRequestJsonObject.put("authenticationChallenge", "");
+    secRequestJsonObject.put("clientCertificate", "");
+    secRequestJsonObject.put("clientCertificateSigningAAMCertificate", "");
+    secRequestJsonObject.put("foreignTokenIssuingAAMCertificate", "");
+
+    rootJsonObject.put("payload", payloadJsonObject);
+    rootJsonObject.put("secRequest", secRequestJsonObject);
+
+    message = rootJsonObject.toString();
+    return message;
+}//end
+//------------------------------------------------------------------------------------------
+ public void sendKeepAliveMessage(){
+
+     String message = null;
+     try {
+         message = getMessage(KEEP_ALIVE_MESSAGE, "resourceId");
+     }catch(Exception ex){
+         System.out.println(ex.getMessage().toString());
+         return;
+     }
+
+     /*
+      * Send the keep alive command
+      * to the remote RAP microservice.
+      */
+     try {
+         sendMessageToRAP(message);
+     }catch (Exception ex){
+         System.out.println("Failed to send message to RAP");
+         return;
+     }
+
+
+ }//end
+//------------------------------------------------------------------------------------------
+public String subscribeResource(String resourceId,String configuration){
+    try {
+        String message = createExtraInfoMessage(resourceId,configuration,EXTRA_INFO);
+        sendMessageToRAP(message);
+    } catch (Exception e) {
+        e.printStackTrace();
+        return FAIL;
+    }
+    return OK;
+}//end
+//------------------------------------------------------------------------------------------
+ public String unSubscribeResource(String resourceId,String configuration){
+   try {
+         String message = createExtraInfoMessage(resourceId,configuration,UNSUBSCRIBE_COMMAND);
+         sendMessageToRAP(message);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return FAIL;
+        }
+        return OK;
+    }//end
+//--------------------------------------------------------------------------------------------
 public static String getMessage(String command,String resourceId) throws Exception{
     String message = "";
     JSONObject rootJsonObject       = new JSONObject();
@@ -179,7 +271,7 @@ public static String getMessage(String command,String resourceId) throws Excepti
     String[] resourceIds = new String[1];
     resourceIds[0] = resourceId;
 
-    if(!command.equals(SUBSCRIBE_COMMAND) && !command.equals(UNSUBSCRIBE_COMMAND)){
+    if(!command.equals(SUBSCRIBE_COMMAND) && !command.equals(UNSUBSCRIBE_COMMAND) &&!command.equals(KEEP_ALIVE_MESSAGE)){
         throw new Exception("command: " + command + " not supported");
     }
 
@@ -208,6 +300,7 @@ public static String getMessage(String command,String resourceId) throws Excepti
 
     rootJsonObject.put("payload", payloadJsonObject);
     rootJsonObject.put("secRequest", secRequestJsonObject);
+
     message = rootJsonObject.toString();
     return message;
 }//end
@@ -251,7 +344,77 @@ public String getAsapaToken(String email,String password){
     return token;
 }//end
 //--------------------------------------------------------------------------------------
-public  String getResourceIdFromInternalID(String internalID){
+  public String getResourceIdFromInternalID(String internalID){
+      String resourceId   = null;
+      String resourcesURL = interWorkingInterface + "/rh/resources";
+
+      /*
+       * Get token from ASAPA.
+       */
+
+      ///String token = "";
+
+     // try {
+     //     token = getAsapaToken(email, password);
+     // }catch(Exception ex){
+     //     ERROR_MESSAGE = "Failed to get token from ASAPA";
+      //    return  null;
+     // }
+
+    //  if(token == null){
+     //     ERROR_MESSAGE = "Failed to get token from ASAPA";
+     //     return null;
+     // }
+
+      RestTemplate restTemplate = new RestTemplate();
+      ResponseEntity<?> responseEntity;
+
+      HttpStatus httpStatus;
+
+      try {
+          responseEntity = restTemplate.getForEntity(resourcesURL, String.class);
+          httpStatus     = responseEntity.getStatusCode();
+      }catch(Exception ex){
+          System.out.println("getResourceIdFromInternalID exception 1");
+          return  resourceId;
+      }
+
+      if(httpStatus.value() != HttpStatus.OK.value()){
+
+          System.out.println("getResourceIdFromInternalID exception 2");
+          return  resourceId;
+      }
+
+     // System.out.println("httpStatus= " + httpStatus);
+     // System.out.println("responseEntity.getBody()= " + responseEntity.getBody());
+
+      JSONArray resourcesJsonArray = new JSONArray(responseEntity.getBody().toString());
+
+      int numberOfResources = resourcesJsonArray.length();
+
+      for(int i = 0; i < numberOfResources; i++ ){
+
+          JSONObject jsonObject = resourcesJsonArray.getJSONObject(i);
+          String resourceInternalID = jsonObject.getString("internalId");
+
+          if(resourceInternalID.equals(internalID)){
+              /*
+               * Found the resource with the requested internal id
+               */
+              JSONObject resourceJsonObject =  jsonObject.getJSONObject("resource");
+              resourceId = resourceJsonObject.getString("id");
+              System.out.println("Found resource id = " + resourceId);
+              return  resourceId;
+          }
+      }
+
+      System.out.println("Not found resource with internal id = " + internalID);
+
+
+      return resourceId;
+  }//end
+//-------------------------------------------------------------------------------------
+public  String _getResourceIdFromInternalID(String internalID){
 
     /*
      * Get token.

@@ -56,26 +56,18 @@ public class TestWebSocketClient {
          * parameters of notification request message.
          */
 
-        /*
-         * TODO Fill interWorkingInterface,
-         * internalID and platformID.
-         */
 
-        String interWorkingInterface = "https://xxxxxxxxx"; //required
-        String internalID            = "xxxxxx";//required
-        String platformID            = "xxxx";//required
+        String interWorkingInterface = "https://iotfeds-symbiotecloud.intracom-telecom.com";// "https://symbiote-cloud.intracom-telecom.com";//"https://marios-cloud.iotfeds.intracom-telecom.com";//"https://symbiote-cloud.intracom-telecom.com"; //required
+        String internalID            = "isen1";//"899967";//required
+        String platformID            = "icom-platform";//"l2-icom-platform";//required
 
         /*
          * The following parameters are
          * the credentials of the data consumer.
          */
 
-        /*
-         * TODO Fill email and passsword
-         */
-
-        String email                 = "xxxxxx";
-        String password              = "xxxxxxxxx";
+        String email                 = "a55441234@icom.com";
+        String password              = "kktsak";
 
         LocalClientSocket clientSocket = new LocalClientSocket();
         WebSocketContainer container   = ContainerProvider.getWebSocketContainer();
@@ -119,16 +111,10 @@ public class TestWebSocketClient {
          * from the internalID.
          */
 
-        String resourceId = webSocketApi.getResourceIdFromInternalID(internalID);
-
-        if(resourceId == null){
-            System.out.println("Failed to find the resource id");
-            String errorMessage = webSocketApi.getErrorMessage();
-            System.out.println("ERROR MESSAGE: " + errorMessage);
-            return;
-        }
-
-
+        String resourceId = "64f52f793d30a600019fdad6";//webSocketApi.getResourceIdFromInternalID(internalID);
+        String productId  = "PR_94096093594011";
+        String authenticationToken = "fsidfosdifposipfoifdiogu8weruuioweqr23049435";
+        String frequency = "4";
 
         /*
          * Open a web socket to the
@@ -147,20 +133,26 @@ public class TestWebSocketClient {
                  */
                 String message = null;
                 try {
-                    message = webSocketApi.getMessage(webSocketApi.SUBSCRIBE_COMMAND, resourceId);
+                    JSONObject subscriptionJsonMessage = new JSONObject();
+                    subscriptionJsonMessage.put("internalId","isen1");
+                    subscriptionJsonMessage.put("productId",productId);
+                    subscriptionJsonMessage.put("sessionId",session.getId());
+                    subscriptionJsonMessage.put("authenticationToken",authenticationToken);
+                    subscriptionJsonMessage.put("frequency",frequency);
+
+                    JSONObject sendJsonMessage = new JSONObject(subscriptionJsonMessage.toString());
+
+                    String id   = sendJsonMessage.getString("internalId");
+                    String pr   = sendJsonMessage.getString("productId");
+                    String sid  = sendJsonMessage.getString("sessionId");
+                    String auth = sendJsonMessage.getString("authenticationToken");
+                    String fr   = sendJsonMessage.getString("frequency");
+
+                    String res = webSocketApi.subscribeResource(resourceId,subscriptionJsonMessage.toString());
+                    System.out.println("subscribing res = " + res);
+
                 }catch(Exception ex){
                     System.out.println(ex.getMessage().toString());
-                    return;
-                }
-
-                /*
-                 * Send the subscribe command
-                 * to the remote RAP microservice.
-                 */
-                try {
-                    webSocketApi.sendMessageToRAP(message);
-                }catch (Exception ex){
-                    System.out.println("Failed to send message to RAP");
                     return;
                 }
 
@@ -179,7 +171,7 @@ public class TestWebSocketClient {
                 System.out.println("Test started at: " + formatter.format(date));
 
                 long start = System.currentTimeMillis();
-                long duration = 60 * 1000; //60 seconds
+                long duration = 50 * 1000; //50 seconds
 
                 /*
                  * Add the webSocketApi to
@@ -206,28 +198,25 @@ public class TestWebSocketClient {
                  */
 
 
-                /*
-                 * Build the unsubscribe
-                 * request json message.
-                 */
-
                 try {
-                    message = webSocketApi.getMessage(webSocketApi.UNSUBSCRIBE_COMMAND, resourceId);
+                    JSONObject unSubscriptionJsonMessage = new JSONObject();
+                    unSubscriptionJsonMessage.put("internalId", "isen1");
+                    unSubscriptionJsonMessage.put("productId", productId);
+                    unSubscriptionJsonMessage.put("sessionId", session.getId());
+
+                    JSONObject sendJsonMessage = new JSONObject(unSubscriptionJsonMessage.toString());
+
+                    String id  = sendJsonMessage.getString("internalId");
+                    String pr  = sendJsonMessage.getString("productId");
+                    String sid = sendJsonMessage.getString("sessionId");
+
+                    String res = webSocketApi.unSubscribeResource(resourceId, unSubscriptionJsonMessage.toString());
+                    System.out.println("unsubscribing res = " + res);
                 }catch(Exception ex){
-                    System.out.println(ex.getMessage().toString());
-                    return;
+                    System.out.println("Failed to unsubscribe");
+
                 }
 
-                /*
-                 * Send the unsubscribe command
-                 * to the remote RAP microservice.
-                 */
-                try {
-                    webSocketApi.sendMessageToRAP(message);
-                }catch (Exception ex){
-                    System.out.println("Failed to send message to RAP");
-                    return;
-                }
 
                 /*
                  * Remove the resource id
@@ -273,16 +262,12 @@ public class TestWebSocketClient {
         public void onWebSocketText(String message) throws IOException, EncodeException {
             messageEchoed = message;
             spin = false;
+            System.out.println("onWebSocketText message = " + message);
 
-            boolean isObservationMessage = WebSocketApi.checkIfIsObservationMessage(message);
-
-            if(isObservationMessage == false) {
-                System.out.println("Is not observation message, ignore it ");
-                return;
-            }
-            else
-                System.out.println("Is observation message");
-
+            if(message.equals("Keep alive message")){
+                System.out.println("RECEIVED KEEP ALIVE MESSAGE");
+            }else {
+            System.out.println("Is observation message");
             System.out.println("Received Observation message from remote RAP web socket =  " + message);
 
             ObjectMapper objectMapper = new ObjectMapper();
@@ -305,6 +290,7 @@ public class TestWebSocketClient {
             } catch (IOException e) {
 
                 e.printStackTrace();
+            }
             }
         }//end
 //--------------------------------------------------------------------------------------------
